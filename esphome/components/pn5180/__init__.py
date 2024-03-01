@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_RESET_PIN,
     CONF_BUSY_PIN,
-    CONF_NSS_PIN,
 )
 
 CODEOWNERS = ["@christothes"]
@@ -54,10 +53,9 @@ PN5180_SCHEMA = (
             ),
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_BUSY_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_NSS_PIN): pins.gpio_output_pin_schema,
         }
-    )
-    .extend(cv.polling_component_schema("1s"))
+    ).extend(cv.polling_component_schema("1s"))
+    # The cs pin is another name for the nss pin
     .extend(spi.spi_device_schema(cs_pin_required=True))
 )
 

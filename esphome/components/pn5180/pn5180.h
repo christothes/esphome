@@ -17,30 +17,30 @@ namespace pn5180 {
 
 // PN5180 Registers
 static const uint8_t SYSTEM_CONFIG  = 0x00
-#define IRQ_ENABLE          (0x01)
-#define IRQ_STATUS          (0x02)
-#define IRQ_CLEAR           (0x03)
-#define TRANSCEIVE_CONTROL  (0x04)
-#define TIMER1_RELOAD       (0x0c)
-#define TIMER1_CONFIG       (0x0f)
-#define RX_WAIT_CONFIG      (0x11)
-#define CRC_RX_CONFIG       (0x12)
-#define RX_STATUS           (0x13)
-#define TX_WAIT_CONFIG	    (0x17)
-#define TX_CONFIG			(0x18)
-#define CRC_TX_CONFIG       (0x19)
-#define RF_STATUS           (0x1d)
-#define SYSTEM_STATUS       (0x24)
-#define TEMP_CONTROL        (0x25)
-#define AGC_REF_CONFIG		(0x26)
+static const uint8_t IRQ_ENABLE = 0x01
+static const uint8_t IRQ_STATUS = 0x02
+static const uint8_t IRQ_CLEAR = 0x03
+static const uint8_t TRANSCEIVE_CONTROL = 0x04
+static const uint8_t TIMER1_RELOAD = 0x0c
+static const uint8_t TIMER1_CONFIG = 0x0f
+static const uint8_t RX_WAIT_CONFIG = 0x11
+static const uint8_t CRC_RX_CONFIG = 0x12
+static const uint8_t RX_STATUS = 0x13
+static const uint8_t TX_WAIT_CONFIG = 0x17
+static const uint8_t TX_CONFIG = 0x18
+static const uint8_t CRC_TX_CONFIG = 0x19
+static const uint8_t RF_STATUS = 0x1d
+static const uint8_t SYSTEM_STATUS = 0x24
+static const uint8_t TEMP_CONTROL = 0x25
+static const uint8_t AGC_REF_CONFIG = 0x26
 
 
 // PN5180 EEPROM Addresses
-#define DIE_IDENTIFIER      (0x00)
-#define PRODUCT_VERSION     (0x10)
-#define FIRMWARE_VERSION    (0x12)
-#define EEPROM_VERSION      (0x14)
-#define IRQ_PIN_CONFIG      (0x1A)
+static const uint8_t DIE_IDENTIFIER = 0x00
+static const uint8_t PRODUCT_VERSION = 0x10
+static const uint8_t FIRMWARE_VERSION = 0x12
+static const uint8_t EEPROM_VERSION = 0x14
+static const uint8_t IRQ_PIN_CONFIG = 0x1A
 
 enum PN5180TransceiveStat {
   PN5180_TS_Idle = 0,
@@ -54,27 +54,30 @@ enum PN5180TransceiveStat {
 };
 
 // PN5180 IRQ_STATUS
-#define RX_IRQ_STAT         	(1<<0)  // End of RF receiption IRQ
-#define TX_IRQ_STAT         	(1<<1)  // End of RF transmission IRQ
-#define IDLE_IRQ_STAT       	(1<<2)  // IDLE IRQ
-#define RFOFF_DET_IRQ_STAT  	(1<<6)  // RF Field OFF detection IRQ
-#define RFON_DET_IRQ_STAT   	(1<<7)  // RF Field ON detection IRQ
-#define TX_RFOFF_IRQ_STAT   	(1<<8)  // RF Field OFF in PCD IRQ
-#define TX_RFON_IRQ_STAT    	(1<<9)  // RF Field ON in PCD IRQ
-#define RX_SOF_DET_IRQ_STAT 	(1<<14) // RF SOF Detection IRQ
-#define GENERAL_ERROR_IRQ_STAT 	(1<<17) // General error IRQ
-#define LPCD_IRQ_STAT 			(1<<19) // LPCD Detection IRQ
+static const uint32_t RX_IRQ_STAT =         	1U<<0;  // End of RF receiption IRQ
+static const uint32_t TX_IRQ_STAT =         	1U<<1;  // End of RF transmission IRQ
+static const uint32_t IDLE_IRQ_STAT =       	1U<<2;  // IDLE IRQ
+static const uint32_t RFOFF_DET_IRQ_STAT =  	1U<<6;  // RF Field OFF detection IRQ
+static const uint32_t RFON_DET_IRQ_STAT =   	1U<<7;  // RF Field ON detection IRQ
+static const uint32_t TX_RFOFF_IRQ_STAT =   	1U<<8;  // RF Field OFF in PCD IRQ
+static const uint32_t TX_RFON_IRQ_STAT =    	1U<<9;  // RF Field ON in PCD IRQ
+static const uint32_t RX_SOF_DET_IRQ_STAT = 	1U<<14; // RF SOF Detection IRQ
+static const uint32_t GENERAL_ERROR_IRQ_STAT =  1U<<17; // General error IRQ
+static const uint32_t LPCD_IRQ_STAT = 		    1U<<19; // LPCD Detection IRQ
 
-#define MIFARE_CLASSIC_KEYA 0x60  // Mifare Classic key A
-#define MIFARE_CLASSIC_KEYB 0x61  // Mifare Classic key B
+#static const uint8_t MIFARE_CLASSIC_KEYA = 0x60  // Mifare Classic key A
+#static const uint8_t MIFARE_CLASSIC_KEYB = 0x61  // Mifare Classic key B
 
-class PN5180 {
+/*
+   * 11.4.1 Physical Host Interface
+   * The interface of the PN5180 to a host microcontroller is based on a SPI interface,
+   * extended by signal line BUSY. The maximum SPI speed is 7 Mbps and fixed to CPOL
+   * = 0 and CPHA = 0.
+   */
+  // Settings for PN5180: 7Mbps, MSB first, SPI_MODE0 (CPOL=0, CPHA=0)
+class PN5180 : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                      spi::DATA_RATE_7MHZ>{
 private:
-  uint8_t PN5180_NSS;   // active low
-  uint8_t PN5180_BUSY;
-  uint8_t PN5180_RST;
-  SPIClass& PN5180_SPI;
-
   SPISettings SPI_SETTINGS;
   static uint8_t readBufferStatic16[16];
   uint8_t* readBufferDynamic508 = NULL;
@@ -136,6 +139,14 @@ public:
   bool clearIRQStatus(uint32_t irqMask);
 
   PN5180TransceiveStat getTransceiveState();
+
+  protected:
+    GPIOPin *cs_{nullptr}; // same as NSS
+    GPIOPin *rst_{nullptr};
+    GPIOPin *mosi_{nullptr};
+    GPIOPin *miso_{nullptr};
+    GPIOPin *sck_{nullptr};
+    GPIOPin *bsy_{nullptr};
 
   /*
    * Private methods, called within an SPI transaction

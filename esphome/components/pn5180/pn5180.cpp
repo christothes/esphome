@@ -13,46 +13,40 @@ static const char *const TAG = "pn5180";
 
 // PN5180 1-Byte Direct Commands
 // see 11.4.3.3 Host Interface Command List
-#define PN5180_WRITE_REGISTER           (0x00)
-#define PN5180_WRITE_REGISTER_OR_MASK   (0x01)
-#define PN5180_WRITE_REGISTER_AND_MASK  (0x02)
-#define PN5180_READ_REGISTER            (0x04)
-#define PN5180_WRITE_EEPROM				(0x06)
-#define PN5180_READ_EEPROM              (0x07)
-#define PN5180_SEND_DATA                (0x09)
-#define PN5180_READ_DATA                (0x0A)
-#define PN5180_SWITCH_MODE              (0x0B)
-#define PN5180_MIFARE_AUTHENTICATE      (0x0C)
-#define PN5180_LOAD_RF_CONFIG           (0x11)
-#define PN5180_RF_ON                    (0x16)
-#define PN5180_RF_OFF                   (0x17)
+static const uint8_t PN5180_WRITE_REGISTER = 0x00
+static const uint8_t PN5180_WRITE_REGISTER_OR_MASK = 0x01
+static const uint8_t PN5180_WRITE_REGISTER_AND_MASK = 0x02
+static const uint8_t PN5180_READ_REGISTER = 0x04
+static const uint8_t PN5180_WRITE_EEPROM = 0x06
+static const uint8_t PN5180_READ_EEPROM = 0x07
+static const uint8_t PN5180_SEND_DATA = 0x09
+static const uint8_t PN5180_READ_DATA = 0x0A
+static const uint8_t PN5180_SWITCH_MODE = 0x0B
+static const uint8_t PN5180_MIFARE_AUTHENTICATE = 0x0C
+static const uint8_t PN5180_LOAD_RF_CONFIG = 0x11
+static const uint8_t PN5180_RF_ON = 0x16
+static const uint8_t PN5180_RF_OFF = 0x17
 
 uint8_t PN5180::readBufferStatic16[16];
+
+// create a local variable for the PN5180ISO15693 instance
+PN5180ISO15693 nfc;
 
 void PN5180::setup() {
   ESP_LOGI(TAG, "PN5180 setup started!");
   this->spi_setup();
-
-  this->cs_->digital_write(false);
+  this->nfc = nfc15693(this.NSS, this.BUSY, PN5180_RST);
   delay(10);
   ESP_LOGI(TAG, "SPI setup finished!");
-  PN5180::setup();
 }
 
-PN5180::PN5180(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass& spi) :
-  PN5180_NSS(SSpin),
-  PN5180_BUSY(BUSYpin),
-  PN5180_RST(RSTpin),
-  PN5180_SPI(spi)
+PN5180::PN5180(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin)
 {
-  /*
-   * 11.4.1 Physical Host Interface
-   * The interface of the PN5180 to a host microcontroller is based on a SPI interface,
-   * extended by signal line BUSY. The maximum SPI speed is 7 Mbps and fixed to CPOL
-   * = 0 and CPHA = 0.
-   */
-  // Settings for PN5180: 7Mbps, MSB first, SPI_MODE0 (CPOL=0, CPHA=0)
-  SPI_SETTINGS = SPISettings(7000000, MSBFIRST, SPI_MODE0);
+// this is defined in the PN5180 header file
+//   SPI_SETTINGS = SPISettings(7000000, MSBFIRST, SPI_MODE0);
+  this->cs_ = SSpin;
+  this->bsy_ = BUSYpin;
+  this->rst_ = RSTpin;
 }
 
 PN5180::~PN5180() {
@@ -61,27 +55,10 @@ PN5180::~PN5180() {
   }
 }
 
-void PN5180::begin() {
-  pinMode(PN5180_NSS, OUTPUT);
-  pinMode(PN5180_BUSY, INPUT);
-  pinMode(PN5180_RST, OUTPUT);
+// void PN5180::begin() is equivalent to this->enable() in the PN532Spi class
 
-  digitalWrite(PN5180_NSS, HIGH); // disable
-  digitalWrite(PN5180_RST, HIGH); // no reset
+// PN5180::end() is equivalent to this->disable() in the PN532Spi class
 
-  PN5180_SPI.begin();
-  PN5180DEBUG(F("SPI pinout: "));
-  PN5180DEBUG(F("SS=")); PN5180DEBUG(SS);
-  PN5180DEBUG(F(", MOSI=")); PN5180DEBUG(MOSI);
-  PN5180DEBUG(F(", MISO=")); PN5180DEBUG(MISO);
-  PN5180DEBUG(F(", SCK=")); PN5180DEBUG(SCK);
-  PN5180DEBUG("\n");
-}
-
-void PN5180::end() {
-  digitalWrite(PN5180_NSS, HIGH); // disable
-  PN5180_SPI.end();
-}
 
 /*
  * WRITE_REGISTER - 0x00
@@ -102,13 +79,16 @@ bool PN5180::writeRegister(uint8_t reg, uint32_t value) {
   PN5180DEBUG("\n");
 #endif
 
+  this->enable();
+  delay(2);
   /*
   For all 4 byte command parameter transfers (e.g. register values), the payload
   parameters passed follow the little endian approach (Least Significant Byte first).
    */
-  uint8_t cmd[] = { PN5180_WRITE_REGISTER, reg, p[0], p[1], p[2], p[3] };
-
-  transceiveCommand(cmd, sizeof(cmd));
+  this->write_byte( PN5180_WRITE_REGISTER);
+  uint8_t cmd[] = { reg, p[0], p[1], p[2], p[3] };
+  this->write_array(cmd, sizeof(cmd));
+  this->disable();
 
   return true;
 }
@@ -134,9 +114,13 @@ bool PN5180::writeRegisterWithOrMask(uint8_t reg, uint32_t mask) {
   PN5180DEBUG("\n");
 #endif
 
-  uint8_t cmd[] = { PN5180_WRITE_REGISTER_OR_MASK, reg, p[0], p[1], p[2], p[3] };
+  this->enable();
+  delay(2);
 
-  transceiveCommand(cmd, sizeof(cmd));
+  this->write_byte( PN5180_WRITE_REGISTER_OR_MASK);
+  uint8_t cmd[] = { reg, p[0], p[1], p[2], p[3] };
+  this->write_array(cmd, sizeof(cmd));
+  this->disable();
 
   return true;
 }
@@ -161,10 +145,13 @@ bool PN5180::writeRegisterWithAndMask(uint8_t reg, uint32_t mask) {
   }
   PN5180DEBUG("\n");
 #endif
+  this->enable();
+  delay(2);
 
-  uint8_t cmd[] = { PN5180_WRITE_REGISTER_AND_MASK, reg, p[0], p[1], p[2], p[3] };
-
-  transceiveCommand(cmd, sizeof(cmd));
+  this->write_byte( PN5180_WRITE_REGISTER_AND_MASK);
+  uint8_t cmd[] = { reg, p[0], p[1], p[2], p[3] };
+  this->write_array(cmd, sizeof(cmd));
+  this->disable();
 
   return true;
 }
