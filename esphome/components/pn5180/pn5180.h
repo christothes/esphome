@@ -99,8 +99,8 @@ class PN5180 : public PollingComponent,
   float get_setup_priority() const override;
 
   void loop() override;
-  //TODO: map to powerdown
-  void on_shutdown() override { powerdown(); }
+  //TODO: map to PN532::powerdown()
+  void on_shutdown() override { }
 
   void register_tag(PN5180BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
@@ -168,11 +168,11 @@ class PN5180 : public PollingComponent,
  protected:
  //TODO: I don't think this is needed since they come from the underlying spi component
   // GPIOPin *cs_{nullptr};  // same as NSS
-  // GPIOPin *rst_{nullptr};
+  GPIOPin *rst_pin_{nullptr};
   // GPIOPin *mosi_{nullptr};
   // GPIOPin *miso_{nullptr};
   // GPIOPin *sck_{nullptr};
-  // GPIOPin *bsy_{nullptr};
+  GPIOPin *bsy_pin_{nullptr};
 
   /*
    * Private methods, called within an SPI transaction
@@ -187,7 +187,7 @@ class PN5180 : public PollingComponent,
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   uint32_t rd_start_time_{0};
-  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
+  // enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,
     CLEAN,

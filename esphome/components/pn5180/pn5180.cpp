@@ -41,7 +41,7 @@ void PN5180::setup() {
   uint8_t productVersion[2];
   this->readEEprom(PRODUCT_VERSION, productVersion, sizeof(productVersion));
   ESP_LOGI(TAG, "Product version=%d.%d", productVersion[1], productVersion[0]);
-  if (0xff == productVersion[1]) { // if product version 255, the initialization failed
+  if (0xff == productVersion[1]) {  // if product version 255, the initialization failed
     ESP_LOGE(TAG, "PN5180 initialization failed!");
     mark_failed();
     return;
@@ -69,7 +69,6 @@ PN5180::~PN5180() {
 
 // PN5180::end() is equivalent to this->disable() in the PN532Spi class
 
-
 /*
  * WRITE_REGISTER - 0x00
  * This command is used to write a 32-bit value (little endian) to a configuration register.
@@ -77,7 +76,7 @@ PN5180::~PN5180() {
  * raised.
  */
 bool PN5180::writeRegister(uint8_t reg, uint32_t value) {
-  uint8_t *p = (uint8_t*)&value;
+  uint8_t *p = (uint8_t *) &value;
 
   ESP_LOGV(TAG, "Write Register 0x%02x, value (LSB first)=0x%02x%02x%02x%02x", reg, p[0], p[1], p[2], p[3]);
 
@@ -87,8 +86,8 @@ bool PN5180::writeRegister(uint8_t reg, uint32_t value) {
   For all 4 byte command parameter transfers (e.g. register values), the payload
   parameters passed follow the little endian approach (Least Significant Byte first).
    */
-  this->write_byte( PN5180_WRITE_REGISTER);
-  uint8_t cmd[] = { reg, p[0], p[1], p[2], p[3] };
+  this->write_byte(PN5180_WRITE_REGISTER);
+  uint8_t cmd[] = {reg, p[0], p[1], p[2], p[3]};
   this->write_array(cmd, sizeof(cmd));
   this->disable();
 
@@ -104,15 +103,15 @@ bool PN5180::writeRegister(uint8_t reg, uint32_t value) {
  * raised.
  */
 bool PN5180::writeRegisterWithOrMask(uint8_t reg, uint32_t mask) {
-  uint8_t *p = (uint8_t*)&mask;
+  uint8_t *p = (uint8_t *) &mask;
 
   ESP_LOGV(TAG, "Write Register 0x%02x with OR mask (LSB first)=0x%02x%02x%02x%02x", reg, p[0], p[1], p[2], p[3]);
 
   this->enable();
   delay(2);
 
-  this->write_byte( PN5180_WRITE_REGISTER_OR_MASK);
-  uint8_t cmd[] = { reg, p[0], p[1], p[2], p[3] };
+  this->write_byte(PN5180_WRITE_REGISTER_OR_MASK);
+  uint8_t cmd[] = {reg, p[0], p[1], p[2], p[3]};
   this->write_array(cmd, sizeof(cmd));
   this->disable();
 
@@ -128,14 +127,14 @@ bool PN5180::writeRegisterWithOrMask(uint8_t reg, uint32_t mask) {
  * raised.
  */
 bool PN5180::writeRegisterWithAndMask(uint8_t reg, uint32_t mask) {
-  uint8_t *p = (uint8_t*)&mask;
+  uint8_t *p = (uint8_t *) &mask;
 
   ESP_LOGV(TAG, "Write Register 0x%02x with AND mask (LSB first)=0x%02x%02x%02x%02x", reg, p[0], p[1], p[2], p[3]);
   this->enable();
   delay(2);
 
-  this->write_byte( PN5180_WRITE_REGISTER_AND_MASK);
-  uint8_t cmd[] = { reg, p[0], p[1], p[2], p[3] };
+  this->write_byte(PN5180_WRITE_REGISTER_AND_MASK);
+  uint8_t cmd[] = {reg, p[0], p[1], p[2], p[3]};
   this->write_array(cmd, sizeof(cmd));
   this->disable();
 
@@ -152,9 +151,9 @@ bool PN5180::writeRegisterWithAndMask(uint8_t reg, uint32_t mask) {
 bool PN5180::readRegister(uint8_t reg, uint32_t *value) {
   ESP_LOGV(TAG, "Reading register %s...", format_hex_pretty(reg).c_str());
 
-  uint8_t cmd[] = { PN5180_READ_REGISTER, reg };
+  uint8_t cmd[] = {PN5180_READ_REGISTER, reg};
 
-  transceiveCommand(cmd, sizeof(cmd), (uint8_t*)value, 4);
+  transceiveCommand(cmd, sizeof(cmd), (uint8_t *) value, 4);
 
   ESP_LOGV(TAG, "Register value=0x%08x", *value);
 
@@ -165,12 +164,13 @@ bool PN5180::readRegister(uint8_t reg, uint32_t *value) {
  * WRITE_EEPROM - 0x06
  */
 bool PN5180::writeEEprom(uint8_t addr, uint8_t *buffer, uint8_t len) {
-	uint8_t cmd[len + 2];
-	cmd[0] = PN5180_WRITE_EEPROM;
-	cmd[1] = addr;
-	for (int i = 0; i < len; i++) cmd[2 + i] = buffer[i];
-	transceiveCommand(cmd, len + 2);
-	return true;
+  uint8_t cmd[len + 2];
+  cmd[0] = PN5180_WRITE_EEPROM;
+  cmd[1] = addr;
+  for (int i = 0; i < len; i++)
+    cmd[2 + i] = buffer[i];
+  transceiveCommand(cmd, len + 2);
+  return true;
 }
 
 /*
@@ -185,16 +185,15 @@ bool PN5180::writeEEprom(uint8_t addr, uint8_t *buffer, uint8_t len) {
  * raised.
  */
 bool PN5180::readEEprom(uint8_t addr, uint8_t *buffer, int len) {
-  if ((addr > 254) || ((addr+len) > 254)) {
+  if ((addr > 254) || ((addr + len) > 254)) {
     ESP_LOGV(TAG, "ERROR: Reading beyond addr 254!")
     return false;
   }
 
-// log the same as the PN5180DEBUG above using ESP_LOGV
+  // log the same as the PN5180DEBUG above using ESP_LOGV
   ESP_LOGV(TAG, "Reading EEPROM at 0x%02x, size=%d...", addr, len);
 
-
-  uint8_t cmd[] = { PN5180_READ_EEPROM, addr, uint8_t(len) };
+  uint8_t cmd[] = {PN5180_READ_EEPROM, addr, uint8_t(len)};
 
   transceiveCommand(cmd, sizeof(cmd), buffer, len);
 
@@ -202,7 +201,6 @@ bool PN5180::readEEprom(uint8_t addr, uint8_t *buffer, int len) {
 
   return true;
 }
-
 
 /*
  * SEND_DATA - 0x09
@@ -227,11 +225,11 @@ bool PN5180::sendData(uint8_t *data, int len, uint8_t validBits) {
 
   ESP_LOGV(TAG, "Send data (len=%d): %s", len, format_hex_pretty(data).c_str());
 
-  uint8_t buffer[len+2];
+  uint8_t buffer[len + 2];
   buffer[0] = PN5180_SEND_DATA;
-  buffer[1] = validBits; // number of valid bits of last byte are transmitted (0 = all bits are transmitted)
-  for (int i=0; i<len; i++) {
-    buffer[2+i] = data[i];
+  buffer[1] = validBits;  // number of valid bits of last byte are transmitted (0 = all bits are transmitted)
+  for (int i = 0; i < len; i++) {
+    buffer[2 + i] = data[i];
   }
 
   writeRegisterWithAndMask(SYSTEM_CONFIG, 0xfffffff8);  // Idle/StopCom Command
@@ -251,7 +249,7 @@ bool PN5180::sendData(uint8_t *data, int len, uint8_t validBits) {
     return false;
   }
 
-  return transceiveCommand(buffer, len+2);
+  return transceiveCommand(buffer, len + 2);
 }
 
 /*
@@ -264,7 +262,7 @@ bool PN5180::sendData(uint8_t *data, int len, uint8_t validBits) {
  * preceding an RF data reception, no exception is raised but the data read back from the
  * reception buffer is invalid. If the condition is not fulfilled, an exception is raised.
  */
-uint8_t * PN5180::readData(int len) {
+uint8_t *PN5180::readData(int len) {
   if (len < 0 || len > 508) {
     ESP_LOGV(TAG, "FATAL: Reading more than 508 bytes is not supported!");
     return 0L;
@@ -272,20 +270,20 @@ uint8_t * PN5180::readData(int len) {
 
   ESP_LOGV(TAG, "Reading Data (len=%d)...", len);
 
-  uint8_t cmd[] = { PN5180_READ_DATA, 0x00 };
+  uint8_t cmd[] = {PN5180_READ_DATA, 0x00};
 
   uint8_t *readBuffer;
-  if (len <=16) {
+  if (len <= 16) {
     // use a smaller static buffer, e.g. if reading the uid only
     readBuffer = readBufferStatic16;
   } else {
     // allocate the max buffer length of 508 bytes
     if (!readBufferDynamic508) {
-       readBufferDynamic508 = (uint8_t *) malloc(508);
-       if (!readBufferDynamic508) {
+      readBufferDynamic508 = (uint8_t *) malloc(508);
+      if (!readBufferDynamic508) {
         ESP_LOGV(TAG, "Cannot allocate the read buffer of 508 Bytes!");
         return 0;
-       }
+      }
     }
     readBuffer = readBufferDynamic508;
   }
@@ -293,7 +291,7 @@ uint8_t * PN5180::readData(int len) {
 
 #ifdef DEBUG
   PN5180DEBUG(F("Data read: "));
-  for (int i=0; i<len; i++) {
+  for (int i = 0; i < len; i++) {
     PN5180DEBUG(formatHex(readBuffer[i]));
     PN5180DEBUG(" ");
   }
@@ -307,29 +305,30 @@ uint8_t * PN5180::readData(int len) {
 
 bool PN5180::readData(int len, uint8_t *buffer) {
   if (len < 0 || len > 508) {
-		return false;
-	}
-	uint8_t cmd[] = { PN5180_READ_DATA, 0x00 };
-	return transceiveCommand(cmd, sizeof(cmd), buffer, len);
+    return false;
+  }
+  uint8_t cmd[] = {PN5180_READ_DATA, 0x00};
+  return transceiveCommand(cmd, sizeof(cmd), buffer, len);
 }
 
 /* prepare LPCD registers */
 bool PN5180::prepareLPCD() {
-  //=======================================LPCD CONFIG================================================================================
+  //=======================================LPCD
+  //CONFIG================================================================================
   ESP_LOGV(TAG, "----------------------------------");
   ESP_LOGV(TAG, "prepare LPCD...");
 
   uint8_t data[255];
   uint8_t response[256];
-    //1. Set Fieldon time                                           LPCD_FIELD_ON_TIME (0x36)
-  uint8_t fieldOn = 0xF0;//0x## -> ##(base 10) x 8μs + 62 μs
+  // 1. Set Fieldon time                                           LPCD_FIELD_ON_TIME (0x36)
+  uint8_t fieldOn = 0xF0;  // 0x## -> ##(base 10) x 8μs + 62 μs
   data[0] = fieldOn;
   writeEEprom(0x36, data, 1);
   readEEprom(0x36, response, 1);
   fieldOn = response[0];
   ESP_LOGV(TAG, "LPCD-fieldOn time: ")
   ESP_LOGV(TAG, "LPCD-fieldOn time: %s", format_hex_pretty(&fieldOn, 1).c_str());
-    //2. Set threshold level                                         AGC_LPCD_THRESHOLD @ EEPROM 0x37
+  // 2. Set threshold level                                         AGC_LPCD_THRESHOLD @ EEPROM 0x37
   uint8_t threshold = 0x03;
   data[0] = threshold;
   writeEEprom(0x37, data, 1);
@@ -338,25 +337,26 @@ bool PN5180::prepareLPCD() {
   // log the same as the PN5180DEBUG above using ESP_LOGV
   ESP_LOGV(TAG, "LPCD-threshold: %s", format_hex_pretty(&threshold, 1).c_str());
 
-  //3. Select LPCD mode                                               LPCD_REFVAL_GPO_CONTROL (0x38)
-  uint8_t lpcdMode = 0x01; // 1 = LPCD SELF CALIBRATION 
-                           // 0 = LPCD AUTO CALIBRATION (this mode does not work, should look more into it, no reason why it shouldn't work)
+  // 3. Select LPCD mode                                               LPCD_REFVAL_GPO_CONTROL (0x38)
+  uint8_t lpcdMode = 0x01;  // 1 = LPCD SELF CALIBRATION
+                            // 0 = LPCD AUTO CALIBRATION (this mode does not work, should look more into it, no reason
+                            // why it shouldn't work)
   data[0] = lpcdMode;
   writeEEprom(0x38, data, 1);
   readEEprom(0x38, response, 1);
   lpcdMode = response[0];
   ESP_LOGV(TAG, "lpcdMode: %s", format_hex_pretty(&lpcdMode, 1).c_str());
-  
+
   // LPCD_GPO_TOGGLE_BEFORE_FIELD_ON (0x39)
-  uint8_t beforeFieldOn = 0xF0; 
+  uint8_t beforeFieldOn = 0xF0;
   data[0] = beforeFieldOn;
   writeEEprom(0x39, data, 1);
   readEEprom(0x39, response, 1);
   beforeFieldOn = response[0];
   ESP_LOGV(TAG, "beforeFieldOn: %s", format_hex_pretty(&beforeFieldOn, 1).c_str());
-  
+
   // LPCD_GPO_TOGGLE_AFTER_FIELD_ON (0x3A)
-  uint8_t afterFieldOn = 0xF0; 
+  uint8_t afterFieldOn = 0xF0;
   data[0] = afterFieldOn;
   writeEEprom(0x3A, data, 1);
   readEEprom(0x3A, response, 1);
@@ -372,11 +372,12 @@ bool PN5180::prepareLPCD() {
  */
 bool PN5180::switchToLPCD(uint16_t wakeupCounterInMs) {
   // clear all IRQ flags
-  clearIRQStatus(0xffffffff); 
+  clearIRQStatus(0xffffffff);
   // enable only LPCD and general error IRQ
-  writeRegister(IRQ_ENABLE, LPCD_IRQ_STAT | GENERAL_ERROR_IRQ_STAT);  
-  // switch mode to LPCD 
-  uint8_t cmd[] = { PN5180_SWITCH_MODE, 0x01, (uint8_t)(wakeupCounterInMs & 0xFF), (uint8_t)((wakeupCounterInMs >> 8U) & 0xFF) };
+  writeRegister(IRQ_ENABLE, LPCD_IRQ_STAT | GENERAL_ERROR_IRQ_STAT);
+  // switch mode to LPCD
+  uint8_t cmd[] = {PN5180_SWITCH_MODE, 0x01, (uint8_t) (wakeupCounterInMs & 0xFF),
+                   (uint8_t) ((wakeupCounterInMs >> 8U) & 0xFF)};
   return transceiveCommand(cmd, sizeof(cmd));
 }
 
@@ -385,9 +386,9 @@ bool PN5180::switchToLPCD(uint16_t wakeupCounterInMs) {
  * This command is used to perform a MIFARE Classic Authentication on an activated card.
  * It takes the key, card UID and the key type to authenticate at a given block address. The
  * response contains 1 byte indicating the authentication status.
-*/
+ */
 int16_t PN5180::mifareAuthenticate(uint8_t blockNo, uint8_t *key, uint8_t keyType, uint8_t *uid) {
-  if (keyType != 0x60 && keyType != 0x61){
+  if (keyType != 0x60 && keyType != 0x61) {
     ESP_LOGV(TAG, "ERROR: invalid key type supplied!");
     return -2;
   }
@@ -395,24 +396,23 @@ int16_t PN5180::mifareAuthenticate(uint8_t blockNo, uint8_t *key, uint8_t keyTyp
   uint8_t cmdBuffer[13];
   uint8_t rcvBuffer[1] = {0x02};
   cmdBuffer[0] = PN5180_MIFARE_AUTHENTICATE;  // PN5180 MF Authenticate command
-  for (int i=0;i<6;i++){
-    cmdBuffer[i+1] = key[i];
+  for (int i = 0; i < 6; i++) {
+    cmdBuffer[i + 1] = key[i];
   }
   cmdBuffer[7] = keyType;
   cmdBuffer[8] = blockNo;
-  for (int i=0;i<4;i++){
-    cmdBuffer[9+i] = uid[i];
+  for (int i = 0; i < 4; i++) {
+    cmdBuffer[9 + i] = uid[i];
   }
 
   bool retval = transceiveCommand(cmdBuffer, 13, rcvBuffer, 1);
 
-  if (!retval){
+  if (!retval) {
     ESP_LOGV(TAG, "ERROR: sending command failed!");
     return -3;
   }
-  
-  return rcvBuffer[0];
 
+  return rcvBuffer[0];
 }
 
 /*
@@ -434,9 +434,10 @@ int16_t PN5180::mifareAuthenticate(uint8_t blockNo, uint8_t *key, uint8_t keyTyp
  *   0E              ISO 15693 ASK10   26        8E              ISO 15693   53
  */
 bool PN5180::loadRFConfig(uint8_t txConf, uint8_t rxConf) {
-  ESP_LOGV(TAG, "Load RF-Config: txConf=%s, rxConf=%s", format_hex_pretty(&txConf, 1).c_str(), format_hex_pretty(&rxConf, 1).c_str());
+  ESP_LOGV(TAG, "Load RF-Config: txConf=%s, rxConf=%s", format_hex_pretty(&txConf, 1).c_str(),
+           format_hex_pretty(&rxConf, 1).c_str());
 
-  uint8_t cmd[] = { PN5180_LOAD_RF_CONFIG, txConf, rxConf };
+  uint8_t cmd[] = {PN5180_LOAD_RF_CONFIG, txConf, rxConf};
 
   transceiveCommand(cmd, sizeof(cmd));
 
@@ -451,18 +452,18 @@ bool PN5180::loadRFConfig(uint8_t txConf, uint8_t rxConf) {
 bool PN5180::setRF_on() {
   ESP_LOGV(TAG, "Set RF ON");
 
-  uint8_t cmd[] = { PN5180_RF_ON, 0x00 };
+  uint8_t cmd[] = {PN5180_RF_ON, 0x00};
 
   transceiveCommand(cmd, sizeof(cmd));
 
   unsigned long startedWaiting = millis();
-  while (0 == (TX_RFON_IRQ_STAT & getIRQStatus())) {   // wait for RF field to set up (max 500ms)
+  while (0 == (TX_RFON_IRQ_STAT & getIRQStatus())) {  // wait for RF field to set up (max 500ms)
     if (millis() - startedWaiting > 500) {
-    ESP_LOGV(TAG, "Set RF ON timeout")
-	  return false; 
-	}
-  }; 
-  
+      ESP_LOGV(TAG, "Set RF ON timeout")
+      return false;
+    }
+  };
+
   clearIRQStatus(TX_RFON_IRQ_STAT);
   return true;
 }
@@ -475,17 +476,17 @@ bool PN5180::setRF_on() {
 bool PN5180::setRF_off() {
   ESP_LOGV(TAG, "Set RF OFF");
 
-  uint8_t cmd[] { PN5180_RF_OFF, 0x00 };
+  uint8_t cmd[]{PN5180_RF_OFF, 0x00};
 
   transceiveCommand(cmd, sizeof(cmd));
 
   unsigned long startedWaiting = millis();
-  while (0 == (TX_RFOFF_IRQ_STAT & getIRQStatus())) {   // wait for RF field to shut down
+  while (0 == (TX_RFOFF_IRQ_STAT & getIRQStatus())) {  // wait for RF field to shut down
     if (millis() - startedWaiting > 500) {
-    ESP_LOGV(TAG, "Set RF OFF timeout")
-	  return false; 
-	}
-  }; 
+      ESP_LOGV(TAG, "Set RF OFF timeout")
+      return false;
+    }
+  };
   clearIRQStatus(TX_RFOFF_IRQ_STAT);
   return true;
 }
@@ -529,77 +530,81 @@ status register contain information on the exception.
  * If there is a parameter error, the IRQ is set to ACTIVE and a GENERAL_ERROR_IRQ is set.
  */
 bool PN5180::transceiveCommand(uint8_t *sendBuffer, size_t sendBufferLen, uint8_t *recvBuffer, size_t recvBufferLen) {
-  PN5180_SPI.beginTransaction(SPI_SETTINGS);
+  this->enable();
   ESP_LOGV(TAG, "Sending SPI frame: %s", format_hex_pretty(sendBuffer, sendBufferLen).c_str());
   // 0.
   unsigned long startedWaiting = millis();
-  while (LOW != digitalRead(PN5180_BUSY)) {
+  while (false != this->bsy_pin_->digital_read()) {
     if (millis() - startedWaiting > commandTimeout) {
       ESP_LOGV(TAG, "transceiveCommand timeout (send/0)");
-    	PN5180_SPI.endTransaction();
-		return false;
-	};
-  }; // wait until busy is low
+      this->disable();
+      return false;
+    };
+  };  // wait until busy is low
   // 1.
-  digitalWrite(PN5180_NSS, LOW); delay(1);
+  this->cs_->digital_write(false);
+  delay(1);
   // 2.
-  PN5180_SPI.transfer((uint8_t*)sendBuffer, sendBufferLen);	
+  this->transfer_array((uint8_t *) sendBuffer, sendBufferLen);
   // 3.
   startedWaiting = millis();
-  while (HIGH != digitalRead(PN5180_BUSY)) {
+  while (true != this->bsy_pin_->digital_read()) {
     if (millis() - startedWaiting > commandTimeout) {
       ESP_LOGV(TAG, "transceiveCommand timeout (send/3)");
-    	PN5180_SPI.endTransaction();
-		return false;
-	}
-  }; // wait until busy is high
+      this->disable();
+      return false;
+    }
+  };  // wait until busy is high
   // 4.
-  digitalWrite(PN5180_NSS, HIGH); delay(1);
+  this->cs_->digital_write(true);
+  delay(1);
   // 5.
   startedWaiting = millis();
-  while (LOW != digitalRead(PN5180_BUSY)) {
+  while (false != this->bsy_pin_->digital_read()) {
     if (millis() - startedWaiting > commandTimeout) {
-    ESP_LOGV(TAG, "transceiveCommand timeout (send/5)");
-    	PN5180_SPI.endTransaction();
-		return false;
-	};
-  }; // wait until busy is low
+      ESP_LOGV(TAG, "transceiveCommand timeout (send/5)");
+      this->disable();
+      return false;
+    };
+  };  // wait until busy is low
 
   // check, if write-only
   if ((0 == recvBuffer) || (0 == recvBufferLen)) {
-    PN5180_SPI.endTransaction();
+    this->disable();
     return true;
   }
   ESP_LOGV(TAG, "Receiving SPI frame...");
 
   // 1.
-  digitalWrite(PN5180_NSS, LOW); 
+  this->cs_->digital_write(false);
+  delay(1);
   // 2.
   memset(recvBuffer, 0xFF, recvBufferLen);
-  PN5180_SPI.transfer(recvBuffer, recvBufferLen);
+  this->transfer_array(recvBuffer, recvBufferLen);
   // 3.
-  startedWaiting = millis(); //delay(1);
-  while (HIGH != digitalRead(PN5180_BUSY)) {
+  startedWaiting = millis();  // delay(1);
+  while (true != this->bsy_pin_->digital_read()) {
     if (millis() - startedWaiting > commandTimeout) {
-    ESP_LOGV(TAG, "transceiveCommand timeout (receive/3)");
-    	PN5180_SPI.endTransaction();
-		return false;
-	};
-  }; // wait until busy is high
+      ESP_LOGV(TAG, "transceiveCommand timeout (receive/3)");
+      this->disable();
+      return false;
+    };
+  };  // wait until busy is high
   // 4.
-  digitalWrite(PN5180_NSS, HIGH); 
+  this->cs_->digital_write(true);
+  delay(1);
   // 5.
   startedWaiting = millis();
-  while (LOW != digitalRead(PN5180_BUSY)) {
+  while (false != this->bsy_pin_->digital_read()) {
     if (millis() - startedWaiting > commandTimeout) {
-    ESP_LOGV(TAG, "transceiveCommand timeout (receive/5)");
-    	PN5180_SPI.endTransaction();
-		return false;
-	};
-  }; // wait until busy is low
+      ESP_LOGV(TAG, "transceiveCommand timeout (receive/5)");
+      this->disable();
+      return false;
+    };
+  };  // wait until busy is low
 
   ESP_LOGV(TAG, "Received: %s", format_hex_pretty(recvBuffer, recvBufferLen).c_str());
-  PN5180_SPI.endTransaction();
+  this->disable();
   return true;
 }
 
@@ -607,23 +612,24 @@ bool PN5180::transceiveCommand(uint8_t *sendBuffer, size_t sendBufferLen, uint8_
  * Reset NFC device
  */
 void PN5180::reset() {
-  digitalWrite(PN5180_RST, LOW);  // at least 10us required
+  this->rst_pin_->digital_write(false);  // at least 10us required
   delay(1);
-  digitalWrite(PN5180_RST, HIGH); // 2ms to ramp up required
+  this->rst_pin_->digital_write(true);  // 2ms to ramp up required
   delay(5);
 
   unsigned long startedWaiting = millis();
   while (0 == (IDLE_IRQ_STAT & getIRQStatus())) {
-	// wait for system to start up (with timeout)
+    // wait for system to start up (with timeout)
     if (millis() - startedWaiting > commandTimeout) {
-    ESP_LOGV(TAG, "reset failed (timeout)!!!");
-		// try again with larger time
-		digitalWrite(PN5180_RST, LOW);  
-		delay(10);
-		digitalWrite(PN5180_RST, HIGH); 
-		delay(50);
-		return;
-	}
+      ESP_LOGV(TAG, "reset failed (timeout)!!!");
+      ESP_LOGV(TAG, "retrying with larger timeout...");
+      // try again with larger time
+      this->rst_pin_->digital_write(false);
+      delay(10);
+      this->rst_pin_->digital_write(true);
+      delay(50);
+      return;
+    }
   }
 }
 
