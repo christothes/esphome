@@ -18,13 +18,13 @@
 //
 //#define DEBUG 1
 
-#include <Arduino.h>
-#include "PN5180ISO15693.h"
-#include "Debug.h"
+#include "pn5180_ISO15693.h"
+
+namespace esphome {
+namespace pn5180_ISO15693 {
 
 PN5180ISO15693::PN5180ISO15693(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass& spi) 
-              : PN5180(SSpin, BUSYpin, RSTpin, spi) {
-}
+{}}
 
 /*
  * Inventory, code=01
@@ -841,3 +841,5 @@ const char *PN5180ISO15693::strerror(ISO15693ErrorCode errno) {
       else return ("Undefined error code in ISO15693!");
   }
 }
+}  // namespace pn5180_ISO15693
+}  // namespace esphome

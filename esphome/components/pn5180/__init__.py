@@ -55,8 +55,14 @@ PN5180_SCHEMA = (
             cv.Required(CONF_BUSY_PIN): pins.gpio_output_pin_schema,
         }
     ).extend(cv.polling_component_schema("1s"))
-    # The cs pin is another name for the nss pin
-    .extend(spi.spi_device_schema(cs_pin_required=True))
+    # The cs_pin is another name for the nss pin
+    .extend(
+        spi.spi_device_schema(
+            cs_pin_required=True,
+            default_data_rate=spi.SPIDataRate.DATA_RATE_7MHZ,
+            default_mode=spi.SPIMode.MODE_0,
+        )
+    )
 )
 
 

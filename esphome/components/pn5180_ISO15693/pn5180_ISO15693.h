@@ -16,10 +16,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 // Lesser General Public License for more details.
 //
-#ifndef PN5180ISO15693_H
-#define PN5180ISO15693_H
+#ifndef pn5180_ISO15693_H
+#define pn5180_ISO15693_H
 
-#include "PN5180.h"
+#include "pn5180.h"
 
 enum ISO15693ErrorCode {
   EC_NO_CARD = -1,
@@ -36,12 +36,16 @@ enum ISO15693ErrorCode {
   ISO15693_EC_CUSTOM_CMD_ERROR = 0xA0
 };
 
-class PN5180ISO15693 : public PN5180 {
+namespace esphome {
+namespace pn5180_ISO15693 {
+
+class PN5180ISO15693: public pn5180::PN5180 {
 
 public:
-  PN5180ISO15693(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass& spi=SPI);
+// ctor shouldn't be needed
+  // PN5180ISO15693(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass& spi=SPI);
   
-private:
+protected:
   ISO15693ErrorCode issueISO15693Command(uint8_t *cmd, uint8_t cmdLen, uint8_t **resultPtr);
   ISO15693ErrorCode inventoryPoll(uint8_t *uid, uint8_t maxTags, uint8_t *numCard, uint8_t *numCol, uint16_t *collision);
 public:
@@ -71,3 +75,5 @@ public:
 };
 
 #endif /* PN5180ISO15693_H */
+}  // namespace pn5180_ISO15693
+}  // namespace esphome
