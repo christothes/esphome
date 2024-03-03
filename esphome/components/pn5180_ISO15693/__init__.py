@@ -20,7 +20,9 @@ CONF_PN5180_ISO15693_ID = "pn5180_ISO15693_id"
 CONF_ON_FINISHED_WRITE = "on_finished_write"
 
 pn5180_ISO15693_ns = cg.esphome_ns.namespace("pn5180_ISO15693")
-PN5180_ISO15693 = pn5180_ISO15693_ns.class_("PN5180_ISO15693", cg.PollingComponent)
+PN5180ISO15693 = pn5180_ISO15693_ns.class_(
+    "PN5180ISO15693", cg.PollingComponent, spi.SPIDevice
+)
 
 PN5180_ISO15693OnFinishedWriteTrigger = pn5180_ISO15693_ns.class_(
     "PN5180_ISO15693OnFinishedWriteTrigger", automation.Trigger.template()
@@ -33,7 +35,7 @@ PN5180_ISO15693IsWritingCondition = pn5180_ISO15693_ns.class_(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(PN5180_ISO15693),
+            cv.GenerateID(): cv.declare_id(PN5180ISO15693),
             cv.Optional(CONF_ON_TAG): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
@@ -87,13 +89,16 @@ async def setup_pn5180_ISO15693(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
+    cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+    cg.add(var.set_busy_pin(config[CONF_BUSY_PIN]))
+
 
 @automation.register_condition(
     "pn5180_ISO15693.is_writing",
     PN5180_ISO15693IsWritingCondition,
     cv.Schema(
         {
-            cv.GenerateID(): cv.use_id(PN5180_ISO15693),
+            cv.GenerateID(): cv.use_id(PN5180ISO15693),
         }
     ),
 )

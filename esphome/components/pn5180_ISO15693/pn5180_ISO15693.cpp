@@ -20,33 +20,31 @@
 
 // #include "pn5180.h"
 #include "pn5180_ISO15693.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace pn5180_ISO15693 {
 
+static const char *const TAG = "pn5180_ISO15693";
 // PN5180ISO15693::PN5180ISO15693(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass& spi)
 // {}}
 
 void PN5180ISO15693::setup() {
-  ESP_LOGI(TAG, "PN5180 setup started!");
+  ESP_LOGI(TAG, "setup started!");
+  ESP_LOGI(TAG, "calling spi_setup()");
   this->spi_setup();
-  // write a command here?
+  ESP_LOGI(TAG, "spi_setup() finished!");
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  BUSY Pin: ", this->bsy_pin_);
+  LOG_PIN("  RST Pin: ", this->rst_pin_);
+
   this->cs_->digital_write(false);
   delay(10);
   this->reset();
-  ESP_LOGI(TAG, "PN5180 hard reset");
-  ESP_LOGI(TAG, "Reading product version...");
-  uint8_t productVersion[2];
-  this->readEEprom(pn5180::PRODUCT_VERSION, productVersion, sizeof(productVersion));
-  ESP_LOGI(TAG, "Product version=%d.%d", productVersion[1], productVersion[0]);
-  if (0xff == productVersion[1]) {  // if product version 255, the initialization failed
-    ESP_LOGE(TAG, "PN5180 initialization failed!");
-    mark_failed();
-    return;
-  }
-
-  ESP_LOGI(TAG, "SPI setup finished!");
+  this->setupRF();
 }
+
+float PN5180ISO15693::get_setup_priority() const { return setup_priority::DATA; }
 
 void PN5180ISO15693::update() {
   // TODO: implement
@@ -898,5 +896,25 @@ const char *PN5180ISO15693::strerror(ISO15693ErrorCode errno) {
         return ("Undefined error code in ISO15693!");
   }
 }
+
+void PN5180ISO15693::dump_config() {
+  PN5180::dump_config();
+  LOG_PIN("  CS Pin: ", this->cs_);
+}
+
+bool PN5180ISO15693BinarySensor::process(std::vector<uint8_t> &data) {
+  if (data.size() != this->uid_.size())
+    return false;
+
+  for (size_t i = 0; i < data.size(); i++) {
+    if (data[i] != this->uid_[i])
+      return false;
+  }
+
+  this->publish_state(true);
+  this->found_ = true;
+  return true;
+}
+
 }  // namespace pn5180_ISO15693
 }  // namespace esphome

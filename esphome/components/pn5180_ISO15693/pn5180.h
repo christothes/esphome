@@ -68,8 +68,6 @@ static const uint32_t LPCD_IRQ_STAT = 1U << 19;           // LPCD Detection IRQ
 static const uint8_t MIFARE_CLASSIC_KEYA = 0x60;  // Mifare Classic key A
 static const uint8_t MIFARE_CLASSIC_KEYB = 0x61;  // Mifare Classic key B
 
-class PN5180BinarySensor;
-
 /*
  * 11.4.1 Physical Host Interface
  * The interface of the PN5180 to a host microcontroller is based on a SPI interface,
@@ -91,24 +89,11 @@ class PN5180 : public PollingComponent,
   // TODO: not needed? doesn't seem that components have ctors
   //  PN5180(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass &spi = SPI);
   //  ~PN5180();
-  void setup() override;
 
-  void dump_config() override;
 
-  void update() override;
-  float get_setup_priority() const override;
 
-  void loop() override;
-  // TODO: map to PN5180::powerdown()
-  void on_shutdown() override {}
 
-  void register_tag(PN5180BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
-  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
-  void add_on_finished_write_callback(std::function<void()> callback) {
-    this->on_finished_write_callback_.add(std::move(callback));
-  }
 
   void begin();
   void end();
@@ -152,7 +137,8 @@ class PN5180 : public PollingComponent,
   bool setRF_off();
 
   bool sendCommand(uint8_t *sendBuffer, size_t sendBufferLen, uint8_t *recvBuffer, size_t recvBufferLen);
-
+  void set_rst(GPIOPin *clk) { this->rst_pin_ = clk; }
+  void set_bsy(GPIOPin *clk) { this->bsy_pin_ = clk; }
   /*
    * Helper functions
    */
@@ -181,53 +167,7 @@ class PN5180 : public PollingComponent,
   //  private:
   bool transceiveCommand(uint8_t *sendBuffer, size_t sendBufferLen, uint8_t *recvBuffer = 0, size_t recvBufferLen = 0);
 
-  bool updates_enabled_{true};
-  bool requested_read_{false};
-  std::vector<PN5180BinarySensor *> binary_sensors_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
-  std::vector<uint8_t> current_uid_;
-  nfc::NdefMessage *next_task_message_to_write_;
-  uint32_t rd_start_time_{0};
-  // enum PN5180ReadReady rd_ready_ { WOULDBLOCK };
-  enum NfcTask {
-    READ = 0,
-    CLEAN,
-    FORMAT,
-    WRITE,
-  } next_task_{READ};
-  CallbackManager<void()> on_finished_write_callback_;
-};
 
-class PN5180BinarySensor : public binary_sensor::BinarySensor {
- public:
-  void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
-
-  bool process(std::vector<uint8_t> &data);
-
-  void on_scan_end() {
-    if (!this->found_) {
-      this->publish_state(false);
-    }
-    this->found_ = false;
-  }
-
- protected:
-  std::vector<uint8_t> uid_;
-  bool found_{false};
-};
-
-class PN5180OnFinishedWriteTrigger : public Trigger<> {
- public:
-  explicit PN5180OnFinishedWriteTrigger(PN5180 *parent) {
-    parent->add_on_finished_write_callback([this]() { this->trigger(); });
-  }
-};
-
-template<typename... Ts> class PN5180IsWritingCondition : public Condition<Ts...>, public Parented<PN5180> {
- public:
-  // TODO: fix this
-  bool check(Ts... x) override { return /*this->parent_->is_writing(); */ false; }
 };
 
 }  // namespace pn5180

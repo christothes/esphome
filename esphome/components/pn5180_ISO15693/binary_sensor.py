@@ -3,9 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_UID
 from esphome.core import HexInt
-from . import pn5180_ns, PN5180, CONF_PN5180_ID
+from . import pn5180_ISO15693_ns, PN5180ISO15693, CONF_PN5180_ISO15693_ID
 
-DEPENDENCIES = ["pn5180"]
+DEPENDENCIES = ["pn5180_ISO15693"]
 
 
 def validate_uid(value):
@@ -29,11 +29,13 @@ def validate_uid(value):
     return value
 
 
-PN5180BinarySensor = pn5180_ns.class_("PN5180BinarySensor", binary_sensor.BinarySensor)
+PN5180ISO15693BinarySensor = pn5180_ISO15693_ns.class_(
+    "PN5180ISO15693BinarySensor", binary_sensor.BinarySensor
+)
 
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(PN5180BinarySensor).extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(PN5180ISO15693BinarySensor).extend(
     {
-        cv.GenerateID(CONF_PN5180_ID): cv.use_id(PN5180),
+        cv.GenerateID(CONF_PN5180_ISO15693_ID): cv.use_id(PN5180ISO15693),
         cv.Required(CONF_UID): validate_uid,
     }
 )
@@ -42,7 +44,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(PN5180BinarySensor).extend(
 async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
 
-    hub = await cg.get_variable(config[CONF_PN5180_ID])
+    hub = await cg.get_variable(config[CONF_PN5180_ISO15693_ID])
     cg.add(hub.register_tag(var))
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split("-")]
     cg.add(var.set_uid(addr))
