@@ -137,8 +137,8 @@ class PN5180 : public PollingComponent,
   bool setRF_off();
 
   bool sendCommand(uint8_t *sendBuffer, size_t sendBufferLen, uint8_t *recvBuffer, size_t recvBufferLen);
-  void set_rst(GPIOPin *clk) { this->rst_pin_ = clk; }
-  void set_bsy(GPIOPin *clk) { this->bsy_pin_ = clk; }
+  void set_reset_pin(GPIOPin *pin) { this->rst_pin_ = pin; }
+  void set_busy_pin(GPIOPin *pin) { this->bsy_pin_ = pin; }
   /*
    * Helper functions
    */

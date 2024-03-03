@@ -47,10 +47,34 @@ void PN5180ISO15693::setup() {
 float PN5180ISO15693::get_setup_priority() const { return setup_priority::DATA; }
 
 void PN5180ISO15693::update() {
-  // TODO: implement
+  // if (!updates_enabled_)
+  //   return;
+
+  // for (auto *obj : this->binary_sensors_)
+  //   obj->on_scan_end();
+
+  // if (!this->write_command_({
+  //         PN532_COMMAND_INLISTPASSIVETARGET,
+  //         0x01,  // max 1 card
+  //         0x00,  // baud rate ISO14443A (106 kbit/s)
+  //     })) {
+  //   ESP_LOGW(TAG, "Requesting tag read failed!");
+  //   this->status_set_warning();
+  //   return;
+  // }
+  // this->status_clear_warning();
+  // this->requested_read_ = true;
+  ESP_LOGV(TAG, "PN5180ISO15693::update() called");
+  uint8_t uid[10];
+  ISO15693ErrorCode rc = this->getInventory(uid);
+  if (rc == ISO15693_EC_OK) {
+    ESP_LOGI(TAG, "ISO-15693 card found, UID=%02X %02X %02X %02X %02X %02X %02X %02X", uid[7], uid[6], uid[5], uid[4],
+             uid[3], uid[2], uid[1], uid[0]);
+  }
 }
 
 void PN5180ISO15693::loop() {
+  ESP_LOGV(TAG, "PN5180ISO15693::loop() called");
   // if (!this->requested_read_)
   //   return;
 
@@ -305,9 +329,9 @@ ISO15693ErrorCode PN5180ISO15693::inventoryPoll(uint8_t *uid, uint8_t maxTags, u
 #endif
     }
 
-    if (slot + 1 < 16) {                                // If we have more cards to poll for...
+    if (slot + 1 < 16) {                                        // If we have more cards to poll for...
       writeRegisterWithAndMask(pn5180::TX_CONFIG, 0xFFFFFB3F);  // 11. Next SEND_DATA will only include EOF
-      clearIRQStatus(0x000FFFFF);                       // 14. Clear all IRQ_STATUS flags
+      clearIRQStatus(0x000FFFFF);                               // 14. Clear all IRQ_STATUS flags
       sendData(inventory, 0, 0);  // 12. 13. 15. Idle/StopCom Command, Transceive Command, Send EOF
     }
   }
@@ -588,8 +612,7 @@ ISO15693ErrorCode PN5180ISO15693::getSystemInfo(uint8_t *uid, uint8_t *blockSize
   if (infoFlags & 0x01) {  // DSFID flag
     uint8_t dsfid = *p++;
     ESP_LOGV(TAG, "DSFID=%s", format_hex_pretty(dsfid).c_str());
-  }
-  else
+  } else
     ESP_LOGV(TAG, "No DSFID");
 
   if (infoFlags & 0x02) {  // AFI flag

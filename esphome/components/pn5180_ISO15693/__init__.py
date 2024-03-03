@@ -89,8 +89,10 @@ async def setup_pn5180_ISO15693(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
-    cg.add(var.set_busy_pin(config[CONF_BUSY_PIN]))
+    reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    cg.add(var.set_reset_pin(reset))
+    busy = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
+    cg.add(var.set_busy_pin(busy))
 
 
 @automation.register_condition(
