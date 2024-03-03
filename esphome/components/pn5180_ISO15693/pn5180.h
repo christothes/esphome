@@ -42,7 +42,7 @@ static const uint8_t FIRMWARE_VERSION = 0x12;
 static const uint8_t EEPROM_VERSION = 0x14;
 static const uint8_t IRQ_PIN_CONFIG = 0x1A;
 
-enum PN5180TransceiveStat {
+enum PN5180TransceiveState {
   PN5180_TS_Idle = 0,
   PN5180_TS_WaitTransmit = 1,
   PN5180_TS_Transmitting = 2,
@@ -78,19 +78,19 @@ class PN5180BinarySensor;
  */
 // Settings for PN5180: 7Mbps, MSB first, SPI_MODE0 (CPOL=0, CPHA=0)
 class PN5180 : public PollingComponent,
-               spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
-                              spi::CLOCK_POLARITY_LOW,   // CPOL=0
-                              spi::CLOCK_PHASE_LEADING,  // CPHA=0
-                              spi::DATA_RATE_7MHZ> {
+               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
+                                     spi::CLOCK_POLARITY_LOW,   // CPOL=0
+                                     spi::CLOCK_PHASE_LEADING,  // CPHA=0
+                                     spi::DATA_RATE_7MHZ> {
  private:
   // SPISettings SPI_SETTINGS;
   static uint8_t readBufferStatic16[16];
   uint8_t *readBufferDynamic508 = NULL;
 
  public:
- //TODO: not needed? doesn't seem that components have ctors
-  // PN5180(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass &spi = SPI);
-  // ~PN5180();
+  // TODO: not needed? doesn't seem that components have ctors
+  //  PN5180(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass &spi = SPI);
+  //  ~PN5180();
   void setup() override;
 
   void dump_config() override;
@@ -99,8 +99,8 @@ class PN5180 : public PollingComponent,
   float get_setup_priority() const override;
 
   void loop() override;
-  //TODO: map to PN532::powerdown()
-  void on_shutdown() override { }
+  // TODO: map to PN5180::powerdown()
+  void on_shutdown() override {}
 
   void register_tag(PN5180BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
@@ -163,11 +163,11 @@ class PN5180 : public PollingComponent,
   uint32_t getIRQStatus();
   bool clearIRQStatus(uint32_t irqMask);
 
-  PN5180TransceiveStat getTransceiveState();
+  PN5180TransceiveState getTransceiveState();
 
  protected:
- //TODO: I don't think this is needed since they come from the underlying spi component
-  // GPIOPin *cs_{nullptr};  // same as NSS
+  // TODO: I don't think this is needed since they come from the underlying spi component
+  //  GPIOPin *cs_{nullptr};  // same as NSS
   GPIOPin *rst_pin_{nullptr};
   // GPIOPin *mosi_{nullptr};
   // GPIOPin *miso_{nullptr};
@@ -177,17 +177,19 @@ class PN5180 : public PollingComponent,
   /*
    * Private methods, called within an SPI transaction
    */
-// esphome doesn't recommend using private
-//  private:
+  // esphome doesn't recommend using private
+  //  private:
   bool transceiveCommand(uint8_t *sendBuffer, size_t sendBufferLen, uint8_t *recvBuffer = 0, size_t recvBufferLen = 0);
 
+  bool updates_enabled_{true};
+  bool requested_read_{false};
   std::vector<PN5180BinarySensor *> binary_sensors_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   uint32_t rd_start_time_{0};
-  // enum PN532ReadReady rd_ready_ { WOULDBLOCK };
+  // enum PN5180ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,
     CLEAN,
@@ -197,7 +199,7 @@ class PN5180 : public PollingComponent,
   CallbackManager<void()> on_finished_write_callback_;
 };
 
-class PN532BinarySensor : public binary_sensor::BinarySensor {
+class PN5180BinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
@@ -215,16 +217,17 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class PN532OnFinishedWriteTrigger : public Trigger<> {
+class PN5180OnFinishedWriteTrigger : public Trigger<> {
  public:
-  explicit PN532OnFinishedWriteTrigger(PN5180 *parent) {
+  explicit PN5180OnFinishedWriteTrigger(PN5180 *parent) {
     parent->add_on_finished_write_callback([this]() { this->trigger(); });
   }
 };
 
-template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
+template<typename... Ts> class PN5180IsWritingCondition : public Condition<Ts...>, public Parented<PN5180> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_writing(); }
+  // TODO: fix this
+  bool check(Ts... x) override { return /*this->parent_->is_writing(); */ false; }
 };
 
 }  // namespace pn5180

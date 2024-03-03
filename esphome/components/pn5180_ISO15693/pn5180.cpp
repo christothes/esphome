@@ -29,26 +29,7 @@ static const uint8_t PN5180_RF_OFF = 0x17;
 
 uint8_t PN5180::readBufferStatic16[16];
 
-void PN5180::setup() {
-  ESP_LOGI(TAG, "PN5180 setup started!");
-  this->spi_setup();
-  // write a command here?
-  this->cs_->digital_write(false);
-  delay(10);
-  this->reset();
-  ESP_LOGI(TAG, "PN5180 hard reset");
-  ESP_LOGI(TAG, "Reading product version...");
-  uint8_t productVersion[2];
-  this->readEEprom(PRODUCT_VERSION, productVersion, sizeof(productVersion));
-  ESP_LOGI(TAG, "Product version=%d.%d", productVersion[1], productVersion[0]);
-  if (0xff == productVersion[1]) {  // if product version 255, the initialization failed
-    ESP_LOGE(TAG, "PN5180 initialization failed!");
-    mark_failed();
-    return;
-  }
 
-  ESP_LOGI(TAG, "SPI setup finished!");
-}
 // no ctors in esphome
 // PN5180::PN5180(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin)
 // {
@@ -59,15 +40,18 @@ void PN5180::setup() {
 //   this->rst_ = RSTpin;
 // }
 
-PN5180::~PN5180() {
-  if (readBufferDynamic508) {
-    free(readBufferDynamic508);
-  }
-}
+// TODO: implement the destructor
+// PN5180::~PN5180() {
+//   if (readBufferDynamic508) {
+//     free(readBufferDynamic508);
+//   }
+// }
 
 // void PN5180::begin() is equivalent to this->enable() in the PN532Spi class
 
 // PN5180::end() is equivalent to this->disable() in the PN532Spi class
+
+
 
 /*
  * WRITE_REGISTER - 0x00
@@ -243,7 +227,7 @@ bool PN5180::sendData(uint8_t *data, int len, uint8_t validBits) {
    * stopped via the IDLE/StopCom command
    */
 
-  PN5180TransceiveStat transceiveState = getTransceiveState();
+  PN5180TransceiveState transceiveState = getTransceiveState();
   if (PN5180_TS_WaitTransmit != transceiveState) {
     ESP_LOGV(TAG, "*** ERROR: Transceiver not in state WaitTransmit!?");
     return false;
@@ -289,16 +273,7 @@ uint8_t *PN5180::readData(int len) {
   }
   transceiveCommand(cmd, sizeof(cmd), readBuffer, len);
 
-#ifdef DEBUG
-  PN5180DEBUG(F("Data read: "));
-  for (int i = 0; i < len; i++) {
-    PN5180DEBUG(formatHex(readBuffer[i]));
-    PN5180DEBUG(" ");
-  }
-  PN5180DEBUG("\n");
-  // log the same as the PN5180DEBUG above using ESP_LOGV
   ESP_LOGV(TAG, "Data read: %s", format_hex_pretty(readBuffer, len).c_str());
-#endif
 
   return readBuffer;
 }
@@ -314,7 +289,7 @@ bool PN5180::readData(int len, uint8_t *buffer) {
 /* prepare LPCD registers */
 bool PN5180::prepareLPCD() {
   //=======================================LPCD
-  //CONFIG================================================================================
+  // CONFIG================================================================================
   ESP_LOGV(TAG, "----------------------------------");
   ESP_LOGV(TAG, "prepare LPCD...");
 
@@ -661,7 +636,7 @@ bool PN5180::clearIRQStatus(uint32_t irqMask) {
 extern void showIRQStatus(uint32_t);
 #endif
 
-PN5180TransceiveStat PN5180::getTransceiveState() {
+PN5180TransceiveState PN5180::getTransceiveState() {
   ESP_LOGV(TAG, "Get Transceive state...");
 
   uint32_t rfStatus;
@@ -670,7 +645,7 @@ PN5180TransceiveStat PN5180::getTransceiveState() {
     showIRQStatus(getIRQStatus());
 #endif
     ESP_LOGV(TAG, "ERROR reading RF_STATUS register.");
-    return PN5180TransceiveStat(0);
+    return PN5180TransceiveState(0);
   }
 
   /*
@@ -687,7 +662,7 @@ PN5180TransceiveStat PN5180::getTransceiveState() {
   uint8_t state = ((rfStatus >> 24) & 0x07);
   ESP_LOGV(TAG, "TRANSCEIVE_STATE=0x%s", format_hex_pretty(&state, 1).c_str());
 
-  return PN5180TransceiveStat(state);
+  return PN5180TransceiveState(state);
 }
 
 }  // namespace pn5180
