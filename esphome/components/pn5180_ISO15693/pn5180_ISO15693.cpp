@@ -31,167 +31,127 @@ static const char *const TAG = "pn5180_ISO15693";
 
 void PN5180ISO15693::setup() {
   ESP_LOGI(TAG, "setup started!");
-  ESP_LOGI(TAG, "calling spi_setup()");
   this->spi_setup();
-  ESP_LOGI(TAG, "spi_setup() finished!");
-  LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_PIN("  BUSY Pin: ", this->bsy_pin_);
-  LOG_PIN("  RST Pin: ", this->rst_pin_);
 
   this->cs_->digital_write(false);
-  delay(10);
-  this->reset();
-  this->setupRF();
+
+  // ESP_LOGI(TAG, "----------------------------------");
+  // ESP_LOGI(TAG, "Reading product version...");
+  // uint8_t productVersion[2];
+  // this->readEEprom(pn5180::PRODUCT_VERSION, productVersion, sizeof(productVersion));
+  // ESP_LOGI(TAG, "Product version=%d.%d", productVersion[1], productVersion[0]);
+
+  // if (0xff == productVersion[1]) {  // if product version 255, the initialization failed
+  //   ESP_LOGI(TAG, "Initialization failed!?");
+  //   ESP_LOGI(TAG, "Press reset to restart...");
+  //   return;
+  // }
+  this->updates_enabled_ = true;
+  ESP_LOGI(TAG, "setup complete!");
 }
 
 float PN5180ISO15693::get_setup_priority() const { return setup_priority::DATA; }
 
+bool PN5180ISO15693::powerdown() {
+  this->updates_enabled_ = false;
+  this->requested_read_ = false;
+  ESP_LOGI(TAG, "Powering down");
+  this->reset();
+  this->setRF_off();
+  ESP_LOGI(TAG, "Powerdown successful");
+  delay(1);
+  return true;
+}
+
 void PN5180ISO15693::update() {
-  // if (!updates_enabled_)
-  //   return;
+  update_cnt_++;
+  ESP_LOGI(TAG, "update #%d", update_cnt_);
+  if (!updates_enabled_ || this->update_cnt_ < 5)
+    return;
 
-  // for (auto *obj : this->binary_sensors_)
-  //   obj->on_scan_end();
+  for (auto *obj : this->binary_sensors_) {
+    obj->on_scan_end();
+  }
+  this->requested_read_ = true;
+}
 
-  // if (!this->write_command_({
-  //         PN532_COMMAND_INLISTPASSIVETARGET,
-  //         0x01,  // max 1 card
-  //         0x00,  // baud rate ISO14443A (106 kbit/s)
-  //     })) {
-  //   ESP_LOGW(TAG, "Requesting tag read failed!");
-  //   this->status_set_warning();
-  //   return;
-  // }
-  // this->status_clear_warning();
-  // this->requested_read_ = true;
-  ESP_LOGV(TAG, "PN5180ISO15693::update() called");
+void PN5180ISO15693::loop() {
+  if (!this->requested_read_)
+    return;
+  else
+    this->requested_read_ = false;
+
+  bool success = false;
+  std::vector<uint8_t> read;
+
+  this->reset();
+  this->setupRF();
+
   uint8_t uid[10];
   ISO15693ErrorCode rc = this->getInventory(uid);
   if (rc == ISO15693_EC_OK) {
     ESP_LOGI(TAG, "ISO-15693 card found, UID=%02X %02X %02X %02X %02X %02X %02X %02X", uid[7], uid[6], uid[5], uid[4],
              uid[3], uid[2], uid[1], uid[0]);
+  } else {
+    // no tags found
+    // reset_binary_sensor_tag();
+    return;
   }
+  std::vector<uint8_t> nfcid(uid, uid + 8);
+  // reverse the nfcid vector for matching purposes
+  std::reverse(nfcid.begin(), nfcid.end());
+
+  bool new_tag_discovered = true;
+  for (auto *bin_sens : this->binary_sensors_) {
+    if (bin_sens->process(nfcid)) {
+      new_tag_discovered = false;
+    }
+  }
+
+  if (nfcid.size() == this->current_uid_.size()) {
+    bool same_uid = true;
+    for (size_t i = 0; i < nfcid.size(); i++)
+      same_uid &= nfcid[i] == this->current_uid_[i];
+    if (same_uid) {
+      ESP_LOGI(TAG, "Same tag as before");
+      return;
+    }
+  }
+  ESP_LOGI(TAG, "New tag discovered");
+  this->current_uid_ = nfcid;
+
+  if (next_task_ == READ) {
+    auto tag = this->read_tag_(nfcid);
+    for (auto *trigger : this->triggers_ontag_)
+      trigger->process(tag);
+
+    if (new_tag_discovered) {
+      ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
+      if (tag->has_ndef_message()) {
+        const auto &message = tag->get_ndef_message();
+        const auto &records = message->get_records();
+        ESP_LOGD(TAG, "  NDEF formatted records:");
+        for (const auto &record : records) {
+          ESP_LOGD(TAG, "    %s - %s", record->get_type().c_str(), record->get_payload().c_str());
+        }
+      }
+    }
+  }
+  // this->setRF_off();
 }
 
-void PN5180ISO15693::loop() {
-  ESP_LOGV(TAG, "PN5180ISO15693::loop() called");
-  // if (!this->requested_read_)
-  //   return;
+// void PN5180ISO15693::reset_binary_sensor_tag() {
+//   if (!this->current_uid_.empty()) {
+//     auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
+//     for (auto *trigger : this->triggers_ontagremoved_)
+//       trigger->process(tag);
+//   }
+//   this->current_uid_ = {};
+//   // this->setRF_off();
+// }
 
-  // auto ready = this->read_ready_(false);
-  // if (ready == WOULDBLOCK)
-  //   return;
-
-  // bool success = false;
-  // std::vector<uint8_t> read;
-
-  // if (ready == READY) {
-  //   success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
-  // } else {
-  //   this->send_ack_();  // abort still running InListPassiveTarget
-  // }
-
-  // this->requested_read_ = false;
-
-  // if (!success) {
-  //   // Something failed
-  //   if (!this->current_uid_.empty()) {
-  //     auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
-  //     for (auto *trigger : this->triggers_ontagremoved_)
-  //       trigger->process(tag);
-  //   }
-  //   this->current_uid_ = {};
-  //   this->turn_off_rf_();
-  //   return;
-  // }
-
-  // uint8_t num_targets = read[0];
-  // if (num_targets != 1) {
-  //   // no tags found or too many
-  //   if (!this->current_uid_.empty()) {
-  //     auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
-  //     for (auto *trigger : this->triggers_ontagremoved_)
-  //       trigger->process(tag);
-  //   }
-  //   this->current_uid_ = {};
-  //   this->turn_off_rf_();
-  //   return;
-  // }
-
-  // uint8_t nfcid_length = read[5];
-  // std::vector<uint8_t> nfcid(read.begin() + 6, read.begin() + 6 + nfcid_length);
-  // if (read.size() < 6U + nfcid_length) {
-  //   // oops, pn532 returned invalid data
-  //   return;
-  // }
-
-  // bool report = true;
-  // for (auto *bin_sens : this->binary_sensors_) {
-  //   if (bin_sens->process(nfcid)) {
-  //     report = false;
-  //   }
-  // }
-
-  // if (nfcid.size() == this->current_uid_.size()) {
-  //   bool same_uid = true;
-  //   for (size_t i = 0; i < nfcid.size(); i++)
-  //     same_uid &= nfcid[i] == this->current_uid_[i];
-  //   if (same_uid)
-  //     return;
-  // }
-
-  // this->current_uid_ = nfcid;
-
-  // if (next_task_ == READ) {
-  //   auto tag = this->read_tag_(nfcid);
-  //   for (auto *trigger : this->triggers_ontag_)
-  //     trigger->process(tag);
-
-  //   if (report) {
-  //     ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
-  //     if (tag->has_ndef_message()) {
-  //       const auto &message = tag->get_ndef_message();
-  //       const auto &records = message->get_records();
-  //       ESP_LOGD(TAG, "  NDEF formatted records:");
-  //       for (const auto &record : records) {
-  //         ESP_LOGD(TAG, "    %s - %s", record->get_type().c_str(), record->get_payload().c_str());
-  //       }
-  //     }
-  //   }
-  // } else if (next_task_ == CLEAN) {
-  //   ESP_LOGD(TAG, "  Tag cleaning...");
-  //   if (!this->clean_tag_(nfcid)) {
-  //     ESP_LOGE(TAG, "  Tag was not fully cleaned successfully");
-  //   }
-  //   ESP_LOGD(TAG, "  Tag cleaned!");
-  // } else if (next_task_ == FORMAT) {
-  //   ESP_LOGD(TAG, "  Tag formatting...");
-  //   if (!this->format_tag_(nfcid)) {
-  //     ESP_LOGE(TAG, "Error formatting tag as NDEF");
-  //   }
-  //   ESP_LOGD(TAG, "  Tag formatted!");
-  // } else if (next_task_ == WRITE) {
-  //   if (this->next_task_message_to_write_ != nullptr) {
-  //     ESP_LOGD(TAG, "  Tag writing...");
-  //     ESP_LOGD(TAG, "  Tag formatting...");
-  //     if (!this->format_tag_(nfcid)) {
-  //       ESP_LOGE(TAG, "  Tag could not be formatted for writing");
-  //     } else {
-  //       ESP_LOGD(TAG, "  Writing NDEF data");
-  //       if (!this->write_tag_(nfcid, this->next_task_message_to_write_)) {
-  //         ESP_LOGE(TAG, "  Failed to write message to tag");
-  //       }
-  //       ESP_LOGD(TAG, "  Finished writing NDEF data");
-  //       delete this->next_task_message_to_write_;
-  //       this->next_task_message_to_write_ = nullptr;
-  //       this->on_finished_write_callback_.call();
-  //     }
-  //   }
-  // }
-
-  // this->read_mode();
-
-  // this->turn_off_rf_();
+std::unique_ptr<nfc::NfcTag> PN5180ISO15693::read_tag_(std::vector<uint8_t> &uid) {
+  return make_unique<nfc::NfcTag>(uid);
 }
 
 /*
@@ -206,7 +166,7 @@ ISO15693ErrorCode PN5180ISO15693::getInventory(uint8_t *uid) {
   uint8_t inventory[] = {0x26, 0x01, 0x00};
   //                        |\- inventory flag + high data rate
   //                        \-- 1 slot: only one card, no AFI field present
-  ESP_LOGV(TAG, "Get Inventory...");
+  ESP_LOGI(TAG, "Get Inventory...");
 
   for (int i = 0; i < 8; i++) {
     uid[i] = 0;
@@ -218,12 +178,12 @@ ISO15693ErrorCode PN5180ISO15693::getInventory(uint8_t *uid) {
     return rc;
   }
 
-  ESP_LOGV(TAG, "Response flags: %02X, Data Storage Format ID: %02X, UID: %02X", readBuffer[0], readBuffer[1],
+  ESP_LOGI(TAG, "Response flags: %02X, Data Storage Format ID: %02X, UID: %02X", readBuffer[0], readBuffer[1],
            readBuffer[2]);
 
   for (int i = 0; i < 8; i++) {
     uid[i] = readBuffer[2 + i];
-    ESP_LOGV(TAG, "%s", formatHex(uid[7 - i]).c_str());  // LSB comes first
+    ESP_LOGI(TAG, "%s", format_hex_pretty(uid[7 - i]).c_str());  // LSB comes first
   }
 
   return ISO15693_EC_OK;
@@ -237,12 +197,12 @@ ISO15693ErrorCode PN5180ISO15693::getInventory(uint8_t *uid) {
  *
  */
 ISO15693ErrorCode PN5180ISO15693::getInventoryMultiple(uint8_t *uid, uint8_t maxTags, uint8_t *numCard) {
-  ESP_LOGV(TAG, "PN5180ISO15693: Get Inventory...");
+  ESP_LOGI(TAG, "PN5180ISO15693: Get Inventory...");
   uint16_t collision[maxTags];
   *numCard = 0;
   uint8_t numCol = 0;
   inventoryPoll(uid, maxTags, numCard, &numCol, collision);
-  ESP_LOGV(TAG, "Number of collisions=%d", numCol);
+  ESP_LOGI(TAG, "Number of collisions=%d", numCol);
 
   while (numCol) {  // 5+ Continue until no collisions detected
 #ifdef DEBUG
@@ -295,9 +255,9 @@ ISO15693ErrorCode PN5180ISO15693::inventoryPoll(uint8_t *uid, uint8_t maxTags, u
       printf("Collision detected for UIDs matching %X starting at LSB", collision[*numCol - 1]);
 #endif
     } else if (!(irqStatus & pn5180::RX_IRQ_STAT) && !len) {  // 8. Check if a card has responded
-      ESP_LOGV(TAG, "getInventoryMultiple: No card in this time slot. State=%ld", irqStatus);
+      ESP_LOGI(TAG, "getInventoryMultiple: No card in this time slot. State=%ld", irqStatus);
     } else {
-      ESP_LOGV(TAG, "slot=%d, irqStatus: %ld, RX_STATUS: %ld, Response length=%d", slot, irqStatus, rxStatus, len);
+      ESP_LOGI(TAG, "slot=%d, irqStatus: %ld, RX_STATUS: %ld, Response length=%d", slot, irqStatus, rxStatus, len);
       uint8_t *readBuffer;
       readBuffer = readData(len + 1);  // 9. Read reception buffer
 #ifdef DEBUG
@@ -311,7 +271,7 @@ ISO15693ErrorCode PN5180ISO15693::inventoryPoll(uint8_t *uid, uint8_t maxTags, u
       printf("\n");
 #endif
       if (0L == readBuffer) {
-        ESP_LOGV(TAG, "getInventoryMultiple: ERROR in readData!");
+        ESP_LOGI(TAG, "getInventoryMultiple: ERROR in readData!");
         return ISO15693_EC_UNKNOWN_ERROR;
       }
 
@@ -387,7 +347,7 @@ ISO15693ErrorCode PN5180ISO15693::readSingleBlock(uint8_t *uid, uint8_t blockNo,
     return rc;
   }
 
-  ESP_LOGV(TAG, "Value=%s", std::string(blockData, blockData + blockSize).c_str());
+  ESP_LOGI(TAG, "Value=%s", std::string(blockData, blockData + blockSize).c_str());
 
   return ISO15693_EC_OK;
 }
@@ -448,7 +408,7 @@ ISO15693ErrorCode PN5180ISO15693::writeSingleBlock(uint8_t *uid, uint8_t blockNo
   PN5180DEBUG(":");
   for (int i = 0; i < writeCmdSize; i++) {
     PN5180DEBUG(" ");
-    PN5180DEBUG(formatHex(writeCmd[i]));
+    PN5180DEBUG(format_hex_pretty(writeCmd[i]));
   }
   PN5180DEBUG("\n");
 #endif
@@ -495,11 +455,11 @@ ISO15693ErrorCode PN5180ISO15693::writeSingleBlock(uint8_t *uid, uint8_t blockNo
 ISO15693ErrorCode PN5180ISO15693::readMultipleBlock(uint8_t *uid, uint8_t blockNo, uint8_t numBlock, uint8_t *blockData,
                                                     uint8_t blockSize) {
   if (blockNo > numBlock - 1) {  // Attempted to start at a block greater than the num blocks on the VICC
-    ESP_LOGV(TAG, "Starting block exceeds length of data");
+    ESP_LOGI(TAG, "Starting block exceeds length of data");
     return ISO15693_EC_BLOCK_NOT_AVAILABLE;
   }
   if ((blockNo + numBlock) > numBlock) {  // Will attempt to read a block greater than the num blocks on the VICC
-    ESP_LOGV(TAG, "End of block exceeds length of data");
+    ESP_LOGI(TAG, "End of block exceeds length of data");
     return ISO15693_EC_BLOCK_NOT_AVAILABLE;
   }
 
@@ -521,15 +481,15 @@ ISO15693ErrorCode PN5180ISO15693::readMultipleBlock(uint8_t *uid, uint8_t blockN
   if (ISO15693_EC_OK != rc)
     return rc;
 
-  ESP_LOGV(TAG, "readMultipleBlock: Value=");
+  ESP_LOGI(TAG, "readMultipleBlock: Value=");
   for (int i = 0; i < numBlock * blockSize; i++) {
     blockData[i] = resultPtr[1 + i];
-    ESP_LOGV(TAG, "BlockData[%d]: %s", i, format_hex_pretty(blockData[i]).c_str());
+    ESP_LOGI(TAG, "BlockData[%d]: %s", i, format_hex_pretty(blockData[i]).c_str());
   }
 
   for (int i = 0; i < blockSize; i++) {
     char c = blockData[i];
-    ESP_LOGV(TAG, "%c", c);
+    ESP_LOGI(TAG, "%c", c);
   }
 
   return ISO15693_EC_OK;
@@ -587,8 +547,8 @@ ISO15693ErrorCode PN5180ISO15693::getSystemInfo(uint8_t *uid, uint8_t *blockSize
     sysInfo[2 + i] = uid[i];
   }
 
-  ESP_LOGV(TAG, "Get System Information");
-  ESP_LOGV(TAG, "SysInfo: %s", format_hex_pretty(sysInfo, sizeof(sysInfo)).c_str());
+  ESP_LOGI(TAG, "Get System Information");
+  ESP_LOGI(TAG, "SysInfo: %s", format_hex_pretty(sysInfo, sizeof(sysInfo)).c_str());
 
   uint8_t *readBuffer;
   ISO15693ErrorCode rc = issueISO15693Command(sysInfo, sizeof(sysInfo), &readBuffer);
@@ -600,7 +560,7 @@ ISO15693ErrorCode PN5180ISO15693::getSystemInfo(uint8_t *uid, uint8_t *blockSize
     uid[i] = readBuffer[2 + i];
   }
 
-  ESP_LOGV(TAG, "UID=%s:%s:%s:%s:%s:%s:%s:%s", format_hex_pretty(readBuffer[0]).c_str(),
+  ESP_LOGI(TAG, "UID=%s:%s:%s:%s:%s:%s:%s:%s", format_hex_pretty(readBuffer[0]).c_str(),
            format_hex_pretty(readBuffer[1]).c_str(), format_hex_pretty(readBuffer[2]).c_str(),
            format_hex_pretty(readBuffer[3]).c_str(), format_hex_pretty(readBuffer[4]).c_str(),
            format_hex_pretty(readBuffer[5]).c_str(), format_hex_pretty(readBuffer[6]).c_str(),
@@ -611,13 +571,13 @@ ISO15693ErrorCode PN5180ISO15693::getSystemInfo(uint8_t *uid, uint8_t *blockSize
   uint8_t infoFlags = readBuffer[1];
   if (infoFlags & 0x01) {  // DSFID flag
     uint8_t dsfid = *p++;
-    ESP_LOGV(TAG, "DSFID=%s", format_hex_pretty(dsfid).c_str());
+    ESP_LOGI(TAG, "DSFID=%s", format_hex_pretty(dsfid).c_str());
   } else
-    ESP_LOGV(TAG, "No DSFID");
+    ESP_LOGI(TAG, "No DSFID");
 
   if (infoFlags & 0x02) {  // AFI flag
     uint8_t afi = *p++;
-    ESP_LOGV(TAG, "AFI=%s - %s", format_hex_pretty(afi).c_str(),
+    ESP_LOGI(TAG, "AFI=%s - %s", format_hex_pretty(afi).c_str(),
              (afi >> 4 == 0)    ? "All families"
              : (afi >> 4 == 1)  ? "Transport"
              : (afi >> 4 == 2)  ? "Financial"
@@ -633,7 +593,7 @@ ISO15693ErrorCode PN5180ISO15693::getSystemInfo(uint8_t *uid, uint8_t *blockSize
              : (afi >> 4 == 12) ? "Airline bags"
                                 : "Unknown");
   } else
-    ESP_LOGV(TAG, "No AFI");
+    ESP_LOGI(TAG, "No AFI");
 
   if (infoFlags & 0x04) {  // VICC Memory size
     *numBlocks = *p++;
@@ -643,16 +603,16 @@ ISO15693ErrorCode PN5180ISO15693::getSystemInfo(uint8_t *uid, uint8_t *blockSize
     *blockSize = *blockSize + 1;  // range: 1-32
     *numBlocks = *numBlocks + 1;  // range: 1-256
 
-    ESP_LOGV(TAG, "VICC MemSize=%d BlockSize=%d NumBlocks=%d", uint16_t(*blockSize) * (*numBlocks), *blockSize,
+    ESP_LOGI(TAG, "VICC MemSize=%d BlockSize=%d NumBlocks=%d", uint16_t(*blockSize) * (*numBlocks), *blockSize,
              *numBlocks);
   } else
-    ESP_LOGV(TAG, "No VICC memory size");
+    ESP_LOGI(TAG, "No VICC memory size");
 
   if (infoFlags & 0x08) {  // IC reference
     uint8_t iRef = *p++;
-    ESP_LOGV(TAG, "IC Ref=%s", format_hex_pretty(iRef).c_str());
+    ESP_LOGI(TAG, "IC Ref=%s", format_hex_pretty(iRef).c_str());
   } else
-    ESP_LOGV(TAG, "No IC ref");
+    ESP_LOGI(TAG, "No IC ref");
 
   return ISO15693_EC_OK;
 }
@@ -789,18 +749,14 @@ ISO15693ErrorCode PN5180ISO15693::enablePrivacyMode(uint8_t *password) {
  *   >0 = Error code
  */
 ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(uint8_t *cmd, uint8_t cmdLen, uint8_t **resultPtr) {
-#ifdef DEBUG
-  PN5180DEBUG(F("Issue Command 0x"));
-  PN5180DEBUG(formatHex(cmd[1]));
-  PN5180DEBUG("...\n");
-#endif
+  ESP_LOGI(TAG, "Issue Command 0x%s", format_hex_pretty(cmd[1]).c_str());
 
   sendData(cmd, cmdLen);
   delay(10);
 
   uint32_t irqR = getIRQStatus();
   if (0 == (irqR & pn5180::RX_SOF_DET_IRQ_STAT)) {
-    ESP_LOGV(TAG, "Didnt detect RX_SOF_DET_IRQ_STAT after sendData");
+    ESP_LOGE(TAG, "Didnt detect RX_SOF_DET_IRQ_STAT after sendData");
     return EC_NO_CARD;
   }
 
@@ -808,7 +764,7 @@ ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(uint8_t *cmd, uint8_t cmd
   while (!(irqR & pn5180::RX_IRQ_STAT)) {
     irqR = getIRQStatus();
     if (millis() - startedWaiting > commandTimeout) {
-      ESP_LOGV(TAG, "Didnt detect RX_IRQ_STAT after sendData");
+      ESP_LOGE(TAG, "Didnt detect RX_IRQ_STAT after sendData");
       return EC_NO_CARD;
     }
   }
@@ -816,22 +772,22 @@ ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(uint8_t *cmd, uint8_t cmd
   uint32_t rxStatus;
   readRegister(pn5180::RX_STATUS, &rxStatus);
 
-  ESP_LOGV(TAG, "RX-Status=%s", formatHex(rxStatus).c_str());
+  ESP_LOGI(TAG, "RX-Status=%s", format_hex_pretty(rxStatus).c_str());
 
   uint16_t len = (uint16_t) (rxStatus & 0x000001ff);
 
-  ESP_LOGV(TAG, ", len=%d", len);
+  ESP_LOGI(TAG, ", len=%d", len);
 
   *resultPtr = readData(len);
   if (0L == *resultPtr) {
-    ESP_LOGV(TAG, "*** ERROR in readData!\n");
+    ESP_LOGE(TAG, "*** ERROR in readData!\n");
     return ISO15693_EC_UNKNOWN_ERROR;
   }
 
 #ifdef DEBUG
   Serial.print("Read=");
   for (int i = 0; i < len; i++) {
-    Serial.print(formatHex((*resultPtr)[i]));
+    Serial.print(format_hex_pretty((*resultPtr)[i]));
     if (i < len - 1)
       Serial.print(":");
   }
@@ -840,7 +796,7 @@ ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(uint8_t *cmd, uint8_t cmd
 
   uint32_t irqStatus = getIRQStatus();
   if (0 == (pn5180::RX_SOF_DET_IRQ_STAT & irqStatus)) {  // no card detected
-    ESP_LOGV(TAG, "Didnt detect RX_SOF_DET_IRQ_STAT after readData");
+    ESP_LOGI(TAG, "Didnt detect RX_SOF_DET_IRQ_STAT after readData");
     clearIRQStatus(pn5180::TX_IRQ_STAT | pn5180::IDLE_IRQ_STAT);
     return EC_NO_CARD;
   }
@@ -849,7 +805,7 @@ ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(uint8_t *cmd, uint8_t cmd
   if (responseFlags & (1 << 0)) {  // error flag
     uint8_t errorCode = (*resultPtr)[1];
 
-    ESP_LOGV(TAG, "ERROR code=%s - %s", formatHex(errorCode).c_str(), strerror((ISO15693ErrorCode) errorCode).c_str());
+    ESP_LOGE(TAG, "ERROR code=%s - %s", format_hex_pretty(errorCode).c_str(), "lookuo strerror");
 
     if (errorCode >= 0xA0) {  // custom command error codes
       return ISO15693_EC_CUSTOM_CMD_ERROR;
@@ -868,15 +824,15 @@ ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(uint8_t *cmd, uint8_t cmd
 }
 
 bool PN5180ISO15693::setupRF() {
-  ESP_LOGV(TAG, "Loading RF-Configuration...");
+  ESP_LOGI(TAG, "Loading RF-Configuration...");
   if (loadRFConfig(0x0d, 0x8d)) {  // ISO15693 parameters
-    ESP_LOGV(TAG, "done.");
+    ESP_LOGI(TAG, "Loading RF-Configuration...done.");
   } else
     return false;
 
-  ESP_LOGV(TAG, "Turning ON RF field...");
+  ESP_LOGI(TAG, "Turning ON RF field...");
   if (setRF_on()) {
-    ESP_LOGV(TAG, "done.");
+    ESP_LOGI(TAG, "Turning ON RF field...done.");
   } else
     return false;
 
@@ -886,8 +842,8 @@ bool PN5180ISO15693::setupRF() {
   return true;
 }
 
-const char *PN5180ISO15693::strerror(ISO15693ErrorCode errno) {
-  ESP_LOGV(TAG, "ISO15693ErrorCode=%d", errno);
+const char * PN5180ISO15693::strerror(ISO15693ErrorCode errno) {
+  ESP_LOGE(TAG, "ISO15693ErrorCode=%d", errno);
 
   switch (errno) {
     case EC_NO_CARD:

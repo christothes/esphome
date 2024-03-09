@@ -56,7 +56,8 @@ class PN5180ISO15693 : public pn5180::PN5180 {
   float get_setup_priority() const override;
 
   void loop() override;
-    // TODO: map to PN5180::powerdown()
+  // TODO: map to PN5180::powerdown()
+  bool powerdown();
   void on_shutdown() override { this->setRF_off(); }
 
   void register_tag(PN5180ISO15693BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
@@ -106,8 +107,32 @@ class PN5180ISO15693 : public pn5180::PN5180 {
   // GPIOPin *sck_{nullptr};
   GPIOPin *bsy_pin_{nullptr};
 
-  bool updates_enabled_{true};
+  std::unique_ptr<nfc::NfcTag> read_tag_(std::vector<uint8_t> &uid);
+  // bool format_tag_(std::vector<uint8_t> &uid);
+  // bool clean_tag_(std::vector<uint8_t> &uid);
+  // bool write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
+
+  // std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(std::vector<uint8_t> &uid);
+  // bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  // bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  // bool auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
+  // bool format_mifare_classic_mifare_(std::vector<uint8_t> &uid);
+  // bool format_mifare_classic_ndef_(std::vector<uint8_t> &uid);
+  // bool write_mifare_classic_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
+
+  // std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(std::vector<uint8_t> &uid);
+  // bool read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
+  // bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
+  // uint16_t read_mifare_ultralight_capacity_();
+  // bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
+  //                                   uint8_t &message_start_index);
+  // bool write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
+  // bool write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
+  // bool clean_mifare_ultralight_();
+
+  bool updates_enabled_{false};
   bool requested_read_{false};
+  uint32_t update_cnt_{0};
   std::vector<PN5180ISO15693BinarySensor *> binary_sensors_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;

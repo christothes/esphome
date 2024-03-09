@@ -86,15 +86,6 @@ class PN5180 : public PollingComponent,
   uint8_t *readBufferDynamic508 = NULL;
 
  public:
-  // TODO: not needed? doesn't seem that components have ctors
-  //  PN5180(uint8_t SSpin, uint8_t BUSYpin, uint8_t RSTpin, SPIClass &spi = SPI);
-  //  ~PN5180();
-
-
-
-
-
-
   void begin();
   void end();
 

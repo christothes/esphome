@@ -61,8 +61,8 @@ CONFIG_SCHEMA = (
     .extend(
         spi.spi_device_schema(
             cs_pin_required=True,
-            # default_data_rate=7000000,
-            # default_mode=spi.SPIMode.MODE_0,
+            default_data_rate=7000000,
+            # default_mode=spi.SPI_MODE_OPTIONS[0],
         )
     )
 )
